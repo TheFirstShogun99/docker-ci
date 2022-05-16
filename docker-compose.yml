@@ -1,0 +1,84 @@
+version: '3.7'
+
+volumes:
+  jenkins-home:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonarqube_bundled-plugins:
+  sonarqube_db:
+  postgresql_data:
+
+networks:
+  docker-ci-network:
+    driver: bridge
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: dockerfile-jenkins
+    image: theopendle/jenkins-ci:1.0.0
+    container_name: ${COMPOSE_PROJECT_NAME}-jenkins
+    ports:
+      - ${JENKINS_PORT_MAPPING}
+    environment:
+      JENKINS_OPTS: --prefix=/jenkins
+    volumes:
+      - jenkins-home:/var/jenkins_home
+    networks:
+      - docker-ci-network
+
+  sonarqube:
+    image: sonarqube:latest
+    container_name: ${COMPOSE_PROJECT_NAME}-sonarqube
+    depends_on:
+      - db
+    environment:
+      sonar.web.context: /sonarqube
+      sonar.jdbc.url: jdbc:postgresql://db:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+
+    command: apt-get update
+    command: apt-get install telnet -y
+    command: apt-get install vim
+    command: apt-get install unzip
+    command: apt-get install
+    command: apt-get install iputils-ping -y
+
+    
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+
+    networks:
+      - docker-ci-network
+    ports:
+      - ${SONAR_PORT_MAPPING}
+  db:
+    image: postgres:12
+    container_name: ${COMPOSE_PROJECT_NAME}-db
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonarqube
+    volumes:
+      - sonarqube_db:/var/lib/postgresql
+      - postgresql_data:/var/lib/postgresql/data
+    networks:
+      - docker-ci-network
+
+  nginx:
+    depends_on:
+      - jenkins
+    build:
+      context: .
+      dockerfile: dockerfile-nginx
+    container_name: ${COMPOSE_PROJECT_NAME}
+    ports:
+      - ${NGINX_PORT_MAPPING}
+    networks:
+      - docker-ci-network
